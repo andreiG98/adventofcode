@@ -1,7 +1,4 @@
 import os
-import re
-
-import queue
 
 def read_file(file_path):
     
