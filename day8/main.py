@@ -9,8 +9,6 @@ def read_file(file_path):
     return lines
 
 
-
-
 def visible_trees(forest):
     grid = []
     for row in forest:
