@@ -1,81 +1,96 @@
-import os
-import heapq
 import operator
-
+from collections import defaultdict, deque
+import copy
 from tqdm import tqdm
+from dataclasses import dataclass
+
+
+@dataclass
+class Monkey:
+    items: list[int]
+    operation_operator: operator
+    operation_number: any
+    test: int
+    target: tuple[int, int]
+
 
 OPERATOR_MAPPER = {
     '+': operator.add, 
     '*': operator.mul
 }
 
-def read_file(file_path):
-    
-    with open(file_path) as file:
-        lines = [line.rstrip() for line in file]
-        
-    return lines
+
+def parse_input(input) -> list:
+    monkeys = []
+
+    monkey_string = [monkey.strip() for monkey in input.split("\n\n")]
+
+    for m in monkey_string:
+
+        name, items, operation, test, if_true, if_false = [
+            line.strip() for line in m.split("\n")
+        ]
+        items = deque([int(item) for item in items.split(":")[-1].split(",")])
+        operation = operation.split("=")[-1].strip().split(" ")
+        operation_operator = OPERATOR_MAPPER[operation[1]]
+        operation_number = operation[2]
+        test = int(test.split(" ")[-1])
+        true_to_monkey = int(if_true.split(" ")[-1])
+        false_to_monkey = int(if_false.split(" ")[-1])
+        target = (true_to_monkey, false_to_monkey)
+
+        monkeys.append(Monkey(items, operation_operator, operation_number, test, target))
+
+    return monkeys
 
 
-def play_round(instructions, monkeys_inspected_items, active_monkeys, monkey_instructions_len, worry_level_division):
-    for idx in range(0, len(instructions), monkey_instructions_len):
-        monkey_number = instructions[idx].split(" ")[1].replace(":", "")
-        operation_line = instructions[idx + 2].split("=")[-1].strip().split(" ")
-        operator = OPERATOR_MAPPER[operation_line[1]]
-        
-        test = int(instructions[idx + 3].split(" ")[-1])
-        true_to_monkey = instructions[idx + 4].split(" ")[-1]
-        false_to_monkey = instructions[idx + 5].split(" ")[-1]        
-        
-        while monkeys_inspected_items[monkey_number]:
-            old = monkeys_inspected_items[monkey_number].pop(0)
-            first_number = old if operation_line[0] == 'old' else int(operation_line[0])
-            second_number = old if operation_line[2] == 'old' else int(operation_line[2])
-            
-            active_monkeys[monkey_number] += 1
-            new = operator(first_number, second_number)
-                            
-            new //= worry_level_division
-                            
-            if new % test == 0:
-                monkeys_inspected_items[true_to_monkey].append(new)
-            else:
-                monkeys_inspected_items[false_to_monkey].append(new)
+def solve(monkeys: list[Monkey], part: int, rounds: int) -> int:
+    monkeys = copy.deepcopy(monkeys)
 
+    divisor = 1
+    for m in monkeys:
+        divisor *= m.test
 
-def monkey_business(instructions, rounds=20, top_most_active=2, worry_level_division=3):
-    monkey_instructions_len = 7
-    monkeys_inspected_items = dict()
-    active_monkeys = dict()
-    
-    for idx in range(0, len(instructions), monkey_instructions_len):
-        monkey_number = instructions[idx].split(" ")[1].replace(":", "")
-        items = instructions[idx + 1].split(":")[-1].split(",")
-        items = list(map(int, items))
-        monkeys_inspected_items[monkey_number] = items
-        active_monkeys[monkey_number] = 0
-        
+    counter = defaultdict(int)
     for _ in tqdm(range(rounds)):
-        play_round(instructions=instructions, monkeys_inspected_items=monkeys_inspected_items, active_monkeys=active_monkeys, 
-                    monkey_instructions_len=monkey_instructions_len, worry_level_division=worry_level_division)
-            
-    print(monkeys_inspected_items)
-    print(active_monkeys)
-    
-    top_n_monkeys = heapq.nlargest(top_most_active, active_monkeys.keys(), key=lambda k: active_monkeys[k])
-    monkey_business_sum = 1
-    for idx in range(top_most_active):
-        monkey_business_sum *= active_monkeys[top_n_monkeys[idx]]
+        for i, m in enumerate(monkeys):
+            while m.items:
+                counter[i] += 1
 
-    print(monkey_business_sum)
+                old = m.items.popleft()
+                # new = eval(m.operation)
+                operation_number = old if m.operation_number == 'old' else int(m.operation_number)
+                new = m.operation_operator(old, operation_number)
+
+                if part == 1:
+                    new //= 3
+                else:
+                    new %= divisor
+
+                if new % m.test == 0:
+                    monkeys[m.target[0]].items.append(new)
+                else:
+                    monkeys[m.target[1]].items.append(new)
+
+
+    top, second = sorted(counter.values(), reverse=True)[:2]
+
+    return top * second
     
 
 def main():
-    file_path = os.path.join(os.getcwd(), 'input2.txt')
-    lines = read_file(file_path=file_path)
+    with open("input.txt", "r", encoding="utf-8") as puzzle_input:
+        monkeys_string = puzzle_input.read()
 
-    monkey_business(lines)
-    monkey_business(lines, worry_level_division=1, rounds=1000)
+    monkeys = parse_input(monkeys_string)
+
+    print(monkeys)
+
+    part_1_ans = solve(monkeys, part=1, rounds=20)
+    print(part_1_ans)
+
+    part_2_ans = solve(monkeys, part=2, rounds=10_000)
+    print(part_2_ans)
 
 if __name__ == '__main__':
     main()
